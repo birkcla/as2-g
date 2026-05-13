@@ -1,0 +1,7 @@
+.viewerMain {
+    flex: 1;
+    background-color: black;
+    padding: 10px;
+    min-width: 0;
+    overflow: hidden;
+}

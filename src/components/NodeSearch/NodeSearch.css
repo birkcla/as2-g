@@ -1,0 +1,58 @@
+.node-search {
+    padding-right: 16px;
+    padding-left: 16px;
+}
+
+
+
+.rs__control {
+    border-color: #333;
+    border-radius: 16px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: #333333;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-right: 20px;
+    padding-left: 20px;
+
+
+}
+
+.rs__menu {
+    background-color: #111;
+    border: 1px solid #333;
+    border-radius: 16px;
+    color: #aaaaaa;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-right: 20px;
+    padding-left: 20px;
+
+
+}
+
+.rs__option {
+    color: #aaa;
+}
+
+.rs__option--is-focused {
+    background-color: #222;
+}
+
+.rs__option--is-selected {
+    background-color: #333;
+}
+
+.rs__single-value,
+.rs__input-container {
+    color: #fff;
+}
+
+.rs__placeholder {
+    color: #666;
+}
+
+.rs__indicator-separator {
+    display: none;
+}
