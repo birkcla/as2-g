@@ -1,83 +1,112 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import ForceGraph3D from "react-force-graph-3d";
-import {extractName} from "../../utils/extractName.js";
-import {extractLinks} from "../../utils/extractLinks.js";
 import {useContent} from "../ContentContext.jsx";
 import "./GraphViewer.css"
-import {extractColor} from "../../utils/extractColor.js";
 import * as THREE from "three";
 import {UnrealBloomPass} from "three/addons";
 import {useSelection} from "../SelectionContext.jsx";
 import SpriteText from "three-spritetext";
-import {useNodes} from "../NodeContext.jsx";
+import {useGraphData} from "../hooks/useGraphData.jsx";
+import * as d3 from "d3-force-3d";
+
 
 export default function GraphViewer() {
 
-    const { setNodes } = useNodes();
+
 
     const { selection, setSelection } = useSelection();
 
-    const { contentFiles } = useContent();
-
     const graphRef = useRef(null);
-
-    const [ graphData, setGraphData ] = useState({nodes:[], links:[]});
-
-
-    let linkedIds = new Set();
-    if (selection) {
-        graphData.links
-            .filter(l => (l.source?.id || l.source) === selection.id || (l.target?.id || l.target) === selection.id)
-            .flatMap(l => [l.source?.id || l.source, l.target?.id || l.target])
-            .forEach(id => linkedIds.add(id));
-        linkedIds.add(selection.id);
-    }
-
 
     const containerRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 100, height: 100 });
 
-    function loadFiles() {
-        if (contentFiles.length === 0) return;
-
-        const parseFiles = async () => {
-            const files = await Promise.all(
-                contentFiles.map(async (file) => {
-                    const name = await extractName(file);
-                    const slug= file.name.replace(".md", "")
-                    const links = await extractLinks(file)
-                    const color = await extractColor(file)
-                    const textContent = await file.text()
-                    return {slug: slug, name: name, links: links, color: color, textContent: textContent, visible: true}
-                }))
-
-            const slugs = new Set(files.map(( file) => file.slug));
-
-            const nodes = files.map((n) => ({
-                id: n.slug,
-                name: n.name,
-                textContent: n.textContent,
-                val: 1 + n.links.length,
-                color: n.color,
-                visible: n.visible,
-            }))
 
 
 
-            const links = files.flatMap((n) =>
-            n.links
-                .filter((link) => slugs.has(link))
-                .map((link) => ({ source: n.slug, target: link}))
-            )
 
-            setGraphData({nodes, links})
-            setNodes(nodes)
+
+
+    const { contentFiles } = useContent();
+    const graphData = useGraphData(contentFiles);
+    const [loadedGraph, setLoadedGraph] = useState({ nodes: [], links: [] });
+
+    //recalculate the currenly shown graph
+    function recalculateLoadedGraph() {
+        let visibleNodes;
+        let visibleLinks;
+
+        if (selection) {
+            const selectedId = selection.id;
+            const linkedIds = new Set([selectedId]);
+
+            graphData.links
+                .filter(l => (l.source?.id || l.source) === selectedId
+                    || (l.target?.id || l.target) === selectedId)
+                .forEach(l => {
+                    linkedIds.add(l.source?.id || l.source);
+                    linkedIds.add(l.target?.id || l.target);
+                });
+
+            visibleNodes = graphData.nodes.filter(n => linkedIds.has(n.id));
+            visibleLinks = graphData.links.filter(
+                l => linkedIds.has(l.source?.id || l.source)
+                    && linkedIds.has(l.target?.id || l.target)
+            );
+        } else {
+            visibleNodes = graphData.nodes.filter(n => n.visible);
+            const visibleIds = new Set(visibleNodes.map(n => n.id));
+            visibleLinks = graphData.links.filter(
+                l => visibleIds.has(l.source?.id || l.source)
+                    && visibleIds.has(l.target?.id || l.target)
+            );
         }
 
-        parseFiles()
+        setLoadedGraph({ nodes: visibleNodes, links: visibleLinks });
+    }
+
+    //Make sure the recalculation ic triggered at beginning and whenever the files chang
+    useEffect(() => {
+        recalculateLoadedGraph();
+    }, [graphData]);
+
+
+
+
+
+
+
+
+
+
+
+    function startDelayedReframe() {
+        if (!graphRef.current || loadedGraph.nodes.length === 0) return;
+        graphRef.current.d3Force('charge').strength(-50);
+        graphRef.current.d3Force('collide', d3.forceCollide(25));
+        graphRef.current.d3ReheatSimulation();
+
+        if (selection) {
+            setTimeout(() => {
+                graphRef.current.zoomToFit(2000, -20);
+            }, 100);
+        }
 
     }
 
+
+
+    //make onrefresh called everytime new selection is here
+    useEffect(() => {
+        recalculateLoadedGraph()
+    }, [selection])
+
+
+    useEffect(() => {
+        startDelayedReframe()
+    }, [loadedGraph]);
+
+    //make sure resizing is observed
     useEffect(() => {
         if (!containerRef.current) return;
         const ro = new ResizeObserver(([entry]) => {
@@ -89,10 +118,28 @@ export default function GraphViewer() {
     }, []);
 
 
+    //ake sure resizing is recalculated
     useEffect(() => {
-        loadFiles()
-    }, [contentFiles])
+        if (!graphRef.current) return;
+        const scale = 2000 / Math.max(dimensions.width, dimensions.height);
+        graphRef.current.renderer().setPixelRatio(scale);
+    }, [dimensions]);
 
+
+    //make sure effects are applied
+    useEffect(() => {
+        if (!graphRef.current) return;
+        const renderer = graphRef.current.renderer();
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.6;
+        const bloom = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth / 4, window.innerHeight / 4),
+            0.06, 0.4, 0.9,
+        );
+        graphRef.current.postProcessingComposer().addPass(bloom);
+    }, []);
+
+    //load lighting needs to be on loadedsubset
     useEffect(() => {
         if (!graphRef.current) return;
         const scene = graphRef.current.scene();
@@ -101,103 +148,10 @@ export default function GraphViewer() {
         //scene.add(new THREE.DirectionalLight("#ffffff", 0.3))
     }, [graphData]);
 
-    useEffect(() => {
-        if (!graphRef.current) return;
-        const scene = graphRef.current.scene();
 
-        // remove old selection lights
-        scene.children
-            .filter(c => c.name?.startsWith("selectionLight"))
-            .forEach(l => scene.remove(l));
 
-        if (!selection) return;
-        const node = selection;
 
-        // main light on selected
-        const light = new THREE.PointLight(node.color || "#ffffff", 6000, 150);
-        light.name = "selectionLight_main";
-        light.position.set(node.x || 0, node.y || 0, node.z || 0);
-        scene.add(light);
 
-    }, [selection]);
-
-    useEffect(() => {
-        if (!graphRef.current) return;
-        const renderer = graphRef.current.renderer();
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.6;
-        const bloom = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth / 4, window.innerHeight / 4),
-            0.03, 0.4, 0.9,
-        );
-        graphRef.current.postProcessingComposer().addPass(bloom);
-    }, []);
-
-    useEffect(() => {
-        if (!graphRef.current) return;
-        const scale = 2000 / Math.max(dimensions.width, dimensions.height);
-        graphRef.current.renderer().setPixelRatio(scale);
-    }, [dimensions]);
-
-    function onSelection(n) {
-        setSelection(n);
-    }
-
-    useEffect(() => {
-        const n = selection;
-        if (!n) return;
-
-        const linkedIds = new Set(
-            graphData.links
-                .filter(l => (l.source?.id || l.source) === n.id || (l.target?.id || l.target) === n.id)
-                .flatMap(l => [l.source?.id || l.source, l.target?.id || l.target])
-        );
-        linkedIds.add(n.id);
-
-        const linkedNodes = graphData.nodes.filter(node => linkedIds.has(node.id));
-        if (linkedNodes.length === 0) return;
-
-        let minX = Infinity, maxX = -Infinity;
-        let minY = Infinity, maxY = -Infinity;
-        let minZ = Infinity, maxZ = -Infinity;
-
-        for (const node of linkedNodes) {
-            minX = Math.min(minX, node.x || 0);
-            maxX = Math.max(maxX, node.x || 0);
-            minY = Math.min(minY, node.y || 0);
-            maxY = Math.max(maxY, node.y || 0);
-            minZ = Math.min(minZ, node.z || 0);
-            maxZ = Math.max(maxZ, node.z || 0);
-        }
-
-        const cx = (minX + maxX) / 2;
-        const cy = (minY + maxY) / 2;
-        const cz = (minZ + maxZ) / 2;
-        const spread = 1.4 * Math.max(maxX - minX, maxY - minY, maxZ - minZ, 50);
-
-        const dx = maxX - minX;
-        const dy = maxY - minY;
-        const dz = maxZ - minZ;
-
-        let camX = cx, camY = cy, camZ = cz;
-
-        if (dx <= dy && dx <= dz) {
-            camX = cx + spread * 1.5;
-        } else if (dy <= dx && dy <= dz) {
-            camY = cy + spread * 1.5;
-        } else {
-            camZ = cz + spread * 1.5;
-        }
-
-        setTimeout(() => {
-            graphRef.current.cameraPosition(
-                { x: camX, y: camY, z: camZ },
-                { x: cx, y: cy, z: cz },
-                1000
-            );
-            graphRef.current.controls().target.set(cx, cy, cz);
-        }, 100);
-    }, [selection])
 
 
     const makeNode = useCallback((node) => {
@@ -210,7 +164,7 @@ export default function GraphViewer() {
             new THREE.MeshStandardMaterial({
                 color,
                 emissive: color,
-                emissiveIntensity: isSelected ? 4 : 0.2,
+                emissiveIntensity: isSelected ? 8 : 0.2,
             })
         ));
 
@@ -222,7 +176,8 @@ export default function GraphViewer() {
 
         const label = new SpriteText(node.name);
         label.color = "#ffffff";
-        label.textHeight = 3;
+        label.textHeight = isSelected ? 5 : 3;
+        label.fontWeight = isSelected ? "bold" : "normal";
         label.position.y = 12;
         label.backgroundOpacity = 0;
         group.add(label);
@@ -231,15 +186,9 @@ export default function GraphViewer() {
     }, [selection]);
 
 
-
-    const nodeVis = useCallback((node) => !selection || linkedIds.has(node.id), [selection, linkedIds]);
-
-    const linkVis = useCallback((link) => {
-        if (!selection) return true;
-        const s = link.source?.id || link.source;
-        const t = link.target?.id || link.target;
-        return linkedIds.has(s) && linkedIds.has(t);
-    }, [selection]);
+    function onNodeSelection(node) {
+        setSelection(node)
+    }
 
 
 
@@ -249,18 +198,37 @@ export default function GraphViewer() {
             ref={graphRef}
             width={dimensions.width}
             height={dimensions.height}
-            graphData={graphData}
+            graphData={loadedGraph}
             nodeLabel="name"
-            linkColor="#ffffff"
             nodeResolution={4}
             linkWidth={0.75}
-            linkOpacity={0.5}
-            nodeVisibility={nodeVis}
-            linkVisibility={linkVis}
+            linkColor="#ffffff"
+            linkColor={(link) => {
+                if (!selection) return "#888888";
+                const src = link.source?.id || link.source;
+                const tgt = link.target?.id || link.target;
+                return (src === selection.id || tgt === selection.id) ? "#ffffff" : "#aaaaaa";
+            }}
+            linkOpacity={0.75}
+            d3AlphaDecay={0.01}
+            d3VelocityDecay={0.8}
             backgroundColor="#000000"
             nodeThreeObject={makeNode}
             enableNodeDrag={true}
-            onNodeClick={(n) => onSelection(n)}
+            onNodeClick={(n) => onNodeSelection(n)}
+            onEngineTick={() => {
+                if (!graphRef.current || loadedGraph.nodes.length === 0) return;
+                const cam = graphRef.current.camera();
+                let near = 0;
+                if (selection) {
+                    const n = loadedGraph.nodes.find(n => n.id === selection.id);
+                    if (n) near = cam.position.distanceTo(new THREE.Vector3(n.x || 0, n.y || 0, n.z || 0));
+                }
+                const maxDist = Math.max(...loadedGraph.nodes.map(n => {
+                    return cam.position.distanceTo(new THREE.Vector3(n.x || 0, n.y || 0, n.z || 0));
+                }), 1);
+                graphRef.current.scene().fog = new THREE.Fog("#000000", near, maxDist * 1.2);
+            }}
         />
     </div>
   )
