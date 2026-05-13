@@ -8,7 +8,7 @@
     flex: 1;
     background-color: #111111;
     display: flex;
-    color: white;
+    color: #ffffff;
     flex-direction: column;
     padding: 40px;
     border-radius: 40px;
@@ -38,4 +38,16 @@
 .markdown-wrapper pre code {
     background: none;
     padding: 0;
+}
+
+
+.markdown-wrapper a {
+    color: #ffffff;
+    background-color: #222;
+    border: 1px solid #444;
+    padding: 2px 6px;
+    font-size: 12px;
+    border-radius: 4px;
+    font-family: monospace;
+    text-decoration: none;
 }
