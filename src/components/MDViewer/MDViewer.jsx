@@ -6,10 +6,19 @@ import {useNodes} from "../NodeContext.jsx";
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import {useEffect, useRef} from "react";
 
 export function MDViewer() {
     const { selection, setSelection } = useSelection(); // assumes nodes is in context
     const { nodes } = useNodes()
+
+    const scrollRef = useRef(null);
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = 0;
+        }
+    }, [selection]);
 
     const processedContent = selection
         ? selection.textContent.replace(/\[\[([^\]]+)\]\]/g, (_, name) => `[${name}](${encodeURIComponent(name)})`)
@@ -29,7 +38,7 @@ export function MDViewer() {
             return <div>No node selected</div>
         } else {
             return (
-                <div className="markdown-wrapper">
+                <div className="markdown-wrapper" ref={scrollRef}>
                     <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         remarkPlugins={[remarkMath]}
