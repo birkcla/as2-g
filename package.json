@@ -17,7 +17,9 @@
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.11.0",
     "react-select": "^5.10.2",
+    "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "three": "^0.184.0",
     "three-spritetext": "^1.10.0",
     "typescript": "^6.0.3"

@@ -3,6 +3,9 @@ import { useSelection } from "../SelectionContext.jsx";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {useNodes} from "../NodeContext.jsx";
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export function MDViewer() {
     const { selection, setSelection } = useSelection(); // assumes nodes is in context
@@ -26,6 +29,8 @@ export function MDViewer() {
             <div className="markdown-wrapper">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
                     components={{
                         a: ({ href, children }) => {
                             const isExternal = href.startsWith("http://") || href.startsWith("https://");

@@ -11,8 +11,11 @@
     color: #ffffff;
     flex-direction: column;
     padding: 40px;
+    word-spacing: 2px;
     border-radius: 40px;
     overflow: auto;
+    line-height: 1.3;
+    font-size: 16px;
 }
 
 .markdown-wrapper hr {
@@ -46,8 +49,21 @@
     background-color: #222;
     border: 1px solid #444;
     padding: 2px 6px;
-    font-size: 12px;
+    font-size: 10px;
     border-radius: 4px;
     font-family: monospace;
     text-decoration: none;
+    transition: box-shadow 0.2s;
+}
+
+.markdown-wrapper a:hover {
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+.markdown-wrapper .katex-display {
+    margin: 24px 0;
+}
+
+.markdown-wrapper .katex {
+    line-height: 1.4;
 }
